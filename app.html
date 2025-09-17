@@ -1,0 +1,112 @@
+<!-- index.html - Simple web interface -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Microplastic Detector</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .container { text-align: center; }
+        .button { background: #4CAF50; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; margin: 10px; cursor: pointer; }
+        .results { margin-top: 30px; padding: 20px; background: #f5f5f5; border-radius: 8px; }
+        #imagePreview { max-width: 100%; margin: 20px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1> AI MICROPLASTIC DETECTION</h1>
+        <p>Upload water sample image for AI analysis</p>
+        
+        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+        <button class="button" onclick="document.getElementById('imageInput').click()">📷 Select Image</button>
+        <button class="button" onclick="simulateDetection()">🔄 Run Simulation</button>
+        
+        <img id="imagePreview" style="display: none;">
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000/api';
+        
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('imagePreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+                analyzeImage(file);
+            }
+        });
+        
+        async function analyzeImage(file) {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64 = e.target.result;
+                
+                document.getElementById('results').innerHTML = '<p>🔄 Analyzing image...</p>';
+                
+                try {
+                    const response = await fetch(`${API_URL}/detect`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            image: base64,
+                            location: {lat: 40.7128, lng: -74.0060}
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    displayResults(data);
+                } catch (error) {
+                    document.getElementById('results').innerHTML = '<p>❌ Error connecting to API</p>';
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        async function simulateDetection() {
+            document.getElementById('results').innerHTML = '<p>🔄 Running simulation...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/simulate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({location: {lat: 40.7128, lng: -74.0060}})
+                });
+                
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                document.getElementById('results').innerHTML = '<p>❌ Error: Make sure Flask server is running</p>';
+            }
+        }
+        
+        function displayResults(data) {
+            if (data.success) {
+                let html = `
+                    <div class="results">
+                        <h2>📊 Detection Results</h2>
+                        <p><strong>Total Particles Found: ${data.total_particles}</strong></p>
+                        <h3>Particle Types:</h3>
+                `;
+                
+                for (const [type, count] of Object.entries(data.particle_types)) {
+                    html += `<p>${type.charAt(0).toUpperCase() + type.slice(1)}: ${count}</p>`;
+                }
+                
+                if (data.concentration) {
+                    html += `<p><strong>Concentration: ${data.concentration} mg/L</strong></p>`;
+                }
+                
+                html += `<p><em>Analysis completed at ${new Date(data.timestamp).toLocaleTimeString()}</em></p></div>`;
+                
+                document.getElementById('results').innerHTML = html;
+            } else {
+                document.getElementById('results').innerHTML = `<p>❌ Error: ${data.error}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
